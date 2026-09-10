@@ -140,18 +140,14 @@ void ntsc_load_data(uint3 group_thread_id, int source_offset, float frame_v)
 {
 	float half_step = (BUFFER_WIDTH < BUFFER_PIXEL_SIZE.x * 0.9f) ? BUFFER_PIXEL_SIZE.x * 0.25f : 0.0f;
 
-	for (uint sample_idx = group_thread_id.x; sample_idx < NTSC_SOURCE_SAMPLES; sample_idx += LINE_WIDTH)
-	{
+	for (uint sample_idx = group_thread_id.x; sample_idx < NTSC_SOURCE_SAMPLES; sample_idx += LINE_WIDTH) {
         float2 uv = float2(((float)(source_offset + (int)sample_idx) + 0.5f) * BUFFER_PIXEL_SIZE.x, frame_v);
 
 		float3 yiq = float3(0.0f, 0.0f, 0.0f);
 		float3 a0 = tex2Dlod(s_ntsc_backbuffer, float4(uv.x - half_step, uv.y, 0, 0)).rgb;
-		if (half_step <= 0.0f) 
-		{
+		if (half_step <= 0.0f) {
 			yiq = rgb_to_yiq(max(a0, 0.0f));
-		} 
-		else
-		{
+		} else {
 			float3 a1 = tex2Dlod(s_ntsc_backbuffer, float4(uv.x + half_step, uv.y, 0, 0)).rgb;
 			yiq = rgb_to_yiq(max(a0 + a1, 0.0f) * 0.5f);
 		}
@@ -165,8 +161,7 @@ void ntsc_encode(uint3 group_thread_id, int signal_offset, int source_offset, ui
 {
     float step = BUFFER_PIXEL_SIZE.x;
 
-	for (uint signal_idx = group_thread_id.x; signal_idx < NTSC_SIGNAL_SAMPLES; signal_idx += LINE_WIDTH)
-	{
+	for (uint signal_idx = group_thread_id.x; signal_idx < NTSC_SIGNAL_SAMPLES; signal_idx += LINE_WIDTH) {
         int signal_x = max(signal_offset + (int)signal_idx, 0);
         float luma_scale = max(PARAM_LUMA, 0.01f);
         float chroma_scale = max(PARAM_CHROMA, 0.01f);
@@ -181,8 +176,7 @@ void ntsc_encode(uint3 group_thread_id, int signal_offset, int source_offset, ui
         float2 weight = 1.0f;
 
         [unroll]
-		for (int tap_idx = 0; tap_idx < NTSC_ENCODE_TAPS; tap_idx++)
-		{
+		for (int tap_idx = 0; tap_idx < NTSC_ENCODE_TAPS; tap_idx++) {
 			int sample_idx = signal_x - source_offset - tap_idx;
 
 			float luma = ntsc_luma[sample_idx];
@@ -211,17 +205,14 @@ float4 ntsc_decode(uint3 group_thread_id, uint2 pixel)
 
 	// accumulate multiple samples of composite signal by carrier phase
     [unroll]
-	for (int cycle_idx = 0; cycle_idx < NTSC_DEMODULATION_CYCLES; cycle_idx++)
-	{
+	for (int cycle_idx = 0; cycle_idx < NTSC_DEMODULATION_CYCLES; cycle_idx++) {
 		[unroll]
-		for (int phase_idx = 0; phase_idx < 4; phase_idx++)
-		{
+		for (int phase_idx = 0; phase_idx < 4; phase_idx++) {
 			int signal_idx = (int)group_thread_id.x + NTSC_DEMODULATION_CYCLES * 4 - 1 - cycle_idx * 4 - phase_idx;
 
 			float composite = ntsc_composite[signal_idx];
 			accum[phase_idx] += weight * composite;
-			if (cycle_idx == 0 && (phase_idx & 1) == 0)
-			{
+			if (cycle_idx == 0 && (phase_idx & 1) == 0) {
 				luma += composite * 0.5f;
 			}
 		}
@@ -257,8 +248,7 @@ void faithful_ntsc_main(uint3 group_id : SV_GroupID, uint3 group_thread_id : SV_
     barrier();
 	
 	// demodulate raw composite QAM signal with FIR filters on specific carriers
-	if(any(dispatch_id.xy >= (uint2)BUFFER_SCREEN_SIZE))
-	{
+	if (any(dispatch_id.xy >= (uint2)BUFFER_SCREEN_SIZE)) {
         return;
     }
     
@@ -274,21 +264,17 @@ float4 faithful_ntsc_blit(float4 hpos : SV_Position, float2 texcoord : TEXCOORD)
 	return tex2Dfetch(s_ntsc, hpos.xy);
 }
 
-technique faithful_ntsc
-<
+technique faithful_ntsc <
     ui_label = "Faithful NTSC Filter";
->
-{ 
-	pass faithful_ntsc_main
-    { 
+> { 
+	pass faithful_ntsc_main { 
         ComputeShader = faithful_ntsc_main<GROUP_SIZE_X, GROUP_SIZE_Y, GROUP_SIZE_Z>;
         DispatchSizeX = BUFFER_WIDTH / GROUP_SIZE_X; 
         DispatchSizeY = BUFFER_HEIGHT / GROUP_SIZE_Y; 
 		DispatchSizeZ = GROUP_SIZE_Z;
     }
 
-    pass faithful_ntsc_blit
-	{
+    pass faithful_ntsc_blit {
 		VertexShader = PostProcessVS;
 		PixelShader  = faithful_ntsc_blit;
 	}      
