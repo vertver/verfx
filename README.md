@@ -1,11 +1,11 @@
 verfx faithful shaders
 ==================
 
-![faithful_ntsc](https://github.com/vertver/verfx/blob/main/faithful_ntsc.png)
+![faithful_ntsc](https://raw.githubusercontent.com/vertver/verfx/refs/heads/pictures/faithful_ntsc.png)
 
-![faithful_ntsc_vholume](https://github.com/vertver/verfx/blob/main/faithful_ntsc_vholume.png)
+![faithful_ntsc_vholume](https://raw.githubusercontent.com/vertver/verfx/refs/heads/pictures/faithful_ntsc_vholume.png)
 
-![faithful_ntsc_comparsion_carbon](https://github.com/vertver/verfx/blob/main/faithful_ntsc_comparsion_carbon.png)
+![faithful_ntsc_comparsion_carbon](https://raw.githubusercontent.com/vertver/verfx/refs/heads/pictures/faithful_ntsc_comparsion_carbon.png)
 
 
 Installation
