@@ -87,15 +87,43 @@ uniform int POST_FIELD < source = "framecount"; >;
 #endif
 
 #ifndef NTSC_DEMODULATION_CYCLES
-#define NTSC_DEMODULATION_CYCLES 3    // improves demodulation quality (less dot crawl)
+#define NTSC_DEMODULATION_CYCLES 24   // improves demodulation quality (less dot crawl)
 #endif
 
-#define NTSC_SIGNAL_SAMPLES (LINE_WIDTH + NTSC_DEMODULATION_CYCLES * 4 - 1)
+#if (NTSC_DEMODULATION_CYCLES > 32)
+#define NTSC_DECODE_TAPS 32
+#elif (NTSC_DEMODULATION_CYCLES < 1)
+#define NTSC_DECODE_TAPS 1
+#else
+#define NTSC_DECODE_TAPS NTSC_DEMODULATION_CYCLES
+#endif
+
+#define NTSC_SIGNAL_SAMPLES (LINE_WIDTH + NTSC_DECODE_TAPS - 1)
 #define NTSC_SOURCE_SAMPLES (NTSC_SIGNAL_SAMPLES + NTSC_ENCODE_TAPS - 1)
 
 #define NTSC_FREQ_Y 0.2933f  // 4.2 MHz
 #define NTSC_FREQ_I 0.1048f  // 1.5 MHz
 #define NTSC_FREQ_Q 0.0384f  // 0.55 MHz
+
+// NOTE(vertver): FIR coefficents generated from IIR NTSC-CRT's response
+static const float fir_y[32] = {
+    0.116792f, 0.242562f, 0.174966f, 0.282876f, 0.082318f, 0.049388f, 0.025644f, 0.013314f,
+    0.006457f, 0.003093f, 0.001428f, 0.000650f, 0.000290f, 0.000127f, 0.000055f, 0.000024f,
+    0.000010f, 0.000004f, 0.000002f, 0.000001f, 0.000000f, 0.000000f, 0.000000f, 0.000000f,
+    0.000000f, 0.000000f, 0.000000f, 0.000000f, 0.000000f, 0.000000f, 0.000000f, 0.000000f
+};
+static const float fir_i[32] = {
+    0.030134f, 0.060512f, 0.106078f, 0.146764f, 0.142932f, 0.140058f, 0.107505f, 0.082863f,
+    0.060574f, 0.042483f, 0.028819f, 0.019024f, 0.012275f, 0.007769f, 0.004836f, 0.002968f,
+    0.001798f, 0.001078f, 0.000640f, 0.000376f, 0.000220f, 0.000127f, 0.000073f, 0.000042f,
+    0.000024f, 0.000013f, 0.000008f, 0.000004f, 0.000002f, 0.000001f, 0.000001f, 0.000000f
+};
+static const float fir_q[32] = {
+    0.017258f, 0.039278f, 0.073129f, 0.102855f, 0.119173f, 0.121205f, 0.112486f, 0.097605f,
+    0.080458f, 0.063703f, 0.048824f, 0.036434f, 0.026587f, 0.019037f, 0.013411f, 0.009315f,
+    0.006390f, 0.004336f, 0.002914f, 0.001941f, 0.001283f, 0.000842f, 0.000549f, 0.000356f,
+    0.000229f, 0.000147f, 0.000094f, 0.000060f, 0.000038f, 0.000024f, 0.000015f, 0.000009f
+};
 
 #if NTSC_USE_COMPUTE
 groupshared float ntsc_luma[NTSC_SOURCE_SAMPLES];
@@ -209,32 +237,24 @@ float ntsc_encode(int2 pixel, int source_offset)
 
 float3 ntsc_decode(int2 pixel, int signal_offset)
 {
-    float fir_decay = ntsc_fir_decay(4.0f * NTSC_FREQ_I * max(PARAM_CHROMA, 0.01f));
-    float4 accum = 0.0f;
-    float luma = 0.0f;
-    float weight = 1.0f;
-
-    // accumulate multiple samples of composite signal by carrier phase
-    [unroll]
-    for (int cycle_idx = 0; cycle_idx < NTSC_DEMODULATION_CYCLES; cycle_idx++) {
-        [unroll]
-        for (int phase_idx = 0; phase_idx < 4; phase_idx++) {
-            float composite = ntsc_fetch_composite(pixel - int2(cycle_idx * 4 + phase_idx, 0), signal_offset);
-            accum[phase_idx] += weight * composite;
-            if (cycle_idx == 0 && (phase_idx == 0 || phase_idx == 2)) {
-                luma += composite * 0.5f;
-            }
-        }
-        
-        weight *= (1.0f - fir_decay);
-    }
-    
-    // demodulate chroma signal from base signal
-    float4 phases = accum * (fir_decay / max(1.0f - weight, 1e-5f));
-    float2 state = float2(phases[0] - phases[2], phases[1] - phases[3]);
+	float luma = 0.0f;
+	float2 chroma = float2(0, 0);
     float2 carrier = ntsc_carrier(pixel);
-    float2 chroma = float2(state.x * carrier.x + state.y * carrier.y, state.x * carrier.y - state.y * carrier.x) * 0.5f;
-    return float3(luma, chroma);
+
+    [unroll]
+	for (int tap_idx = 0; tap_idx < NTSC_DECODE_TAPS; tap_idx++) {
+        float composite = ntsc_fetch_composite(pixel - int2(tap_idx, 0), signal_offset);
+
+		// NOTE(vertver): apply FIR coefficents directly for each channel instead of using FIR decay for luma/chroma
+        luma += composite * fir_y[tap_idx];
+        chroma.x += (composite * carrier.x * 2.0f) * fir_i[tap_idx];
+        chroma.y += (composite * carrier.y * 2.0f) * fir_q[tap_idx];
+        
+		// NOTE(vertver): swap carrier sign
+		carrier = float2(carrier.y, -carrier.x);
+    }
+
+    return float3(luma, chroma.x, chroma.y);
 }
 
 #if NTSC_USE_COMPUTE
@@ -243,7 +263,7 @@ float3 ntsc_decode(int2 pixel, int signal_offset)
 void faithful_ntsc_main(uint3 group_id : SV_GroupID, uint3 group_thread_id : SV_GroupThreadID, uint3 dispatch_id : SV_DispatchThreadID)
 {
 	// variables
-    int signal_offset = (int)(group_id.x * LINE_WIDTH) - (NTSC_DEMODULATION_CYCLES * 4 - 1);
+    int signal_offset = (int)(group_id.x * LINE_WIDTH) - (NTSC_DECODE_TAPS - 1);
     int source_offset = signal_offset - (NTSC_ENCODE_TAPS - 1);
     uint row_idx = min(dispatch_id.y, (uint)BUFFER_HEIGHT - 1u);
 
@@ -258,7 +278,7 @@ void faithful_ntsc_main(uint3 group_id : SV_GroupID, uint3 group_thread_id : SV_
 
 	// encode YIQ->composite using quadrature amplitude modulation
     for (uint signal_idx = group_thread_id.x; signal_idx < NTSC_SIGNAL_SAMPLES; signal_idx += LINE_WIDTH) {
-        int2 pixel = int2(max(signal_offset + (int)signal_idx, 0), row_idx);
+        int2 pixel = int2(clamp(signal_offset + (int)signal_idx, 0, (int)BUFFER_WIDTH - 1), row_idx);
         ntsc_composite[signal_idx] = ntsc_encode(pixel, source_offset);
     }
     barrier();
