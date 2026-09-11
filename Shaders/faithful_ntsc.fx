@@ -12,10 +12,17 @@
 
 #include "ReShade.fxh"
 
-#if (__RENDERER__ >= 0xb000 && __RENDERER__ < 0x10000) || (__RENDERER__ >= 0x14300 && __RENDERER__ < 0x20000) || (__RENDERER__ >= 0x20000)
+#if (__RENDERER__ >= 0xb000)
 #define NTSC_USE_COMPUTE 1
 #else
 #define NTSC_USE_COMPUTE 0
+uniform int compute_error_report <
+	ui_type = "radio";
+	ui_label = " ";
+	ui_category = "WARNING: using two-pass path instead of compute shaders";
+	ui_category_closed = false;
+	ui_text = "Compute Shaders are not supported, use DXVK to enable faster path.\n\n";
+> = 0;
 #endif
 
 //Sliders
@@ -42,11 +49,11 @@ texture2D t_ntsc
 {
 	Width = BUFFER_WIDTH;
 	Height = BUFFER_HEIGHT;
-    #if NTSC_USE_COMPUTE
+#if NTSC_USE_COMPUTE
 	Format = RGBA8;
-    #else
+#else
 	Format = RGBA16F;
-    #endif
+#endif
 };
 
 sampler2D s_ntsc
@@ -65,7 +72,6 @@ storage2D u_ntsc
 {
 	Texture = t_ntsc;
 };
-
 #endif
 
 uniform int POST_FIELD < source = "framecount"; >;
