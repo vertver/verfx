@@ -1,9 +1,6 @@
 verfx faithful shader
 ==================
 
-Effects
-------------
-
 # Faithful NTSC
 ![faithful_ntsc](https://github.com/vertver/verfx/blob/main/faithful_ntsc.png)
 
