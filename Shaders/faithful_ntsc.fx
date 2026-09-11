@@ -19,8 +19,8 @@
 #endif
 
 //Sliders
-uniform float PARAM_LUMA < ui_type = "drag"; ui_label = "Luma"; ui_min = 0.0; ui_max = 1.0; > = 0.80;
-uniform float PARAM_CHROMA < ui_type = "drag"; ui_label = "Chroma"; ui_min = 0.0; ui_max = 1.0; > = 0.20;
+uniform float PARAM_LUMA < ui_type = "drag"; ui_label = "Luma"; ui_min = 0.0; ui_max = 1.0; > = 0.60;
+uniform float PARAM_CHROMA < ui_type = "drag"; ui_label = "Chroma"; ui_min = 0.0; ui_max = 1.0; > = 0.10;
 uniform float PARAM_SATURATION < ui_type = "drag"; ui_label = "Saturation"; ui_min = 0.0; ui_max = 2.0; > = 1.10;
 uniform float PARAM_NOISE < ui_type = "drag"; ui_label = "Noise"; ui_min = 0.0; ui_max = 1.0; > = 0.035;
 
@@ -77,7 +77,7 @@ uniform int POST_FIELD < source = "framecount"; >;
 #define LINE_WIDTH GROUP_SIZE_X
 
 #ifndef NTSC_ENCODE_TAPS
-#define NTSC_ENCODE_TAPS 16		      // improves encoded signal quality (more blur)
+#define NTSC_ENCODE_TAPS 24		      // improves encoded signal quality (more blur)
 #endif
 
 #ifndef NTSC_DEMODULATION_CYCLES
