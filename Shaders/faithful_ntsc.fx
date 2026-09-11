@@ -99,7 +99,7 @@ uniform int POST_FIELD < source = "framecount"; >;
 
 #if NTSC_USE_COMPUTE
 groupshared float ntsc_luma[NTSC_SOURCE_SAMPLES];
-groupshared float2 ntsc_chroma[NTSC_SOURCE_SAMPLES]; //LV: edit, since reshade doesnt support multidimensional arrays (can be tough on perf but...)
+groupshared float ntsc_chroma[NTSC_SOURCE_SAMPLES * 2]; //LV: edit, since reshade doesnt support multidimensional arrays (can be tough on perf but...)
 groupshared float ntsc_composite[NTSC_SIGNAL_SAMPLES];
 #endif
 
@@ -161,7 +161,7 @@ float3 ntsc_fetch_yiq(int2 pixel, int source_offset)
 {
 #if NTSC_USE_COMPUTE
     int sample_idx = pixel.x - source_offset;
-    return float3(ntsc_luma[sample_idx], ntsc_chroma[sample_idx]);
+    return float3(ntsc_luma[sample_idx], ntsc_chroma[sample_idx], ntsc_chroma[sample_idx + NTSC_SOURCE_SAMPLES]);
 #else
     return ntsc_sample_yiq(pixel);
 #endif
@@ -251,7 +251,8 @@ void faithful_ntsc_main(uint3 group_id : SV_GroupID, uint3 group_thread_id : SV_
     for (uint sample_idx = group_thread_id.x; sample_idx < NTSC_SOURCE_SAMPLES; sample_idx += LINE_WIDTH) {
         float3 yiq = ntsc_sample_yiq(int2(source_offset + (int)sample_idx, row_idx));
         ntsc_luma[sample_idx] = yiq.x;
-        ntsc_chroma[sample_idx] = yiq.yz; //LV: edit, since reshade doesnt support multidimensional arrays
+        ntsc_chroma[sample_idx] = yiq.y;
+        ntsc_chroma[sample_idx + NTSC_SOURCE_SAMPLES] = yiq.z;
     }
     barrier();
 
