@@ -1,7 +1,6 @@
-verfx faithful shader
+verfx faithful shaders
 ==================
 
-# Faithful NTSC
 ![faithful_ntsc](https://github.com/vertver/verfx/blob/main/faithful_ntsc.png)
 
 ![faithful_ntsc_vholume](https://github.com/vertver/verfx/blob/main/faithful_ntsc_vholume.png)
